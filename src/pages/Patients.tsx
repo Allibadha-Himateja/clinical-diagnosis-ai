@@ -15,29 +15,66 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, FileText } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 const Patients = () => {
   const [search, setSearch] = useState("");
-  const [patients] = useState<Patient[]>(mockPatients);
+  const [patients, setPatients] = useState<Patient[]>(mockPatients);
   const [newPatient, setNewPatient] = useState({
     name: "",
     age: "",
     gender: "male" as "male" | "female" | "other",
     bloodType: "",
     medicalHistory: "",
+    email: "",
   });
+  const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   
   const filteredPatients = patients.filter((patient) =>
     patient.name.toLowerCase().includes(search.toLowerCase())
   );
   
   const handleAddPatient = () => {
-    // In a real application, this would send data to an API
-    console.log("Adding new patient:", newPatient);
+    // Validate form data
+    if (!newPatient.name || !newPatient.age) {
+      toast({
+        variant: "destructive",
+        title: "Missing information",
+        description: "Name and age are required.",
+      });
+      return;
+    }
+
+    // Create new patient
+    const currentDate = new Date().toISOString().split('T')[0];
+    const newId = `patient-${patients.length + 1}`;
+    
+    const patientToAdd: Patient = {
+      id: newId,
+      name: newPatient.name,
+      age: parseInt(newPatient.age),
+      gender: newPatient.gender,
+      bloodType: newPatient.bloodType || undefined,
+      medicalHistory: newPatient.medicalHistory ? newPatient.medicalHistory.split(',').map(item => item.trim()) : undefined,
+      dateAdded: currentDate,
+      email: newPatient.email || undefined
+    };
+    
+    // Add to state (in a real app, this would be an API call)
+    setPatients([...patients, patientToAdd]);
+    
+    // Show success message
+    toast({
+      title: "Patient added",
+      description: `${patientToAdd.name} has been added successfully.`,
+    });
+    
     // Reset form
     setNewPatient({
       name: "",
@@ -45,7 +82,11 @@ const Patients = () => {
       gender: "male",
       bloodType: "",
       medicalHistory: "",
+      email: "",
     });
+    
+    // Close dialog
+    setIsDialogOpen(false);
   };
   
   return (
@@ -61,7 +102,7 @@ const Patients = () => {
             </p>
           </div>
           
-          <Dialog>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" /> Add New Patient
@@ -141,9 +182,25 @@ const Patients = () => {
                     placeholder="Separate conditions with commas"
                   />
                 </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="email" className="text-right">
+                    Email
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={newPatient.email}
+                    onChange={(e) => setNewPatient({ ...newPatient, email: e.target.value })}
+                    className="col-span-3"
+                    placeholder="patient@example.com"
+                  />
+                </div>
               </div>
               
               <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline">Cancel</Button>
+                </DialogClose>
                 <Button onClick={handleAddPatient}>Add Patient</Button>
               </DialogFooter>
             </DialogContent>

@@ -20,7 +20,7 @@ const Signup = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"doctor" | "admin" | "researcher">("doctor");
+  const [role, setRole] = useState<"doctor" | "admin" | "researcher" | "patient">("doctor");
   const { signup, loading } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -81,7 +81,7 @@ const Signup = () => {
               <Label htmlFor="role">Role</Label>
               <Select
                 value={role}
-                onValueChange={(value) => setRole(value as "doctor" | "admin" | "researcher")}
+                onValueChange={(value) => setRole(value as "doctor" | "admin" | "researcher" | "patient")}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select your role" />
@@ -90,6 +90,7 @@ const Signup = () => {
                   <SelectItem value="doctor">Doctor</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="researcher">Researcher</SelectItem>
+                  <SelectItem value="patient">Patient</SelectItem>
                 </SelectContent>
               </Select>
             </div>

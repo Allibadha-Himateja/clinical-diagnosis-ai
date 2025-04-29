@@ -113,13 +113,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error('User with this email already exists');
       }
       
+      // Create new user with a patientId if role is patient
+      const newUserId = (MOCK_USERS.length + 1).toString();
       const newUser = {
-        id: (MOCK_USERS.length + 1).toString(),
+        id: newUserId,
         name,
         email,
         role,
-        patientId: role === 'patient' ? (MOCK_USERS.length + 1).toString() : undefined
+        patientId: role === 'patient' ? newUserId : undefined
       };
+      
+      // In a real app, we would save this user to the database
+      // For demo, we just add to our mock users (in memory only)
+      MOCK_USERS.push({...newUser, password});
       
       setUser(newUser);
       localStorage.setItem('clinicalUser', JSON.stringify(newUser));
