@@ -15,6 +15,7 @@ import Patients from "./pages/Patients";
 import PatientDetails from "./pages/PatientDetails";
 import Diagnose from "./pages/Diagnose";
 import Models from "./pages/Models";
+import PatientPortal from "./pages/PatientPortal";
 import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
 
@@ -69,6 +70,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Models />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/patient-portal" 
+              element={
+                <ProtectedRoute>
+                  <PatientPortal />
                 </ProtectedRoute>
               } 
             />

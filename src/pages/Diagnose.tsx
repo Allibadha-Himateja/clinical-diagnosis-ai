@@ -1,15 +1,16 @@
 
+// This file will need to be created with the appropriate implementation
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
+import { DashboardCard } from "@/components/dashboard/DashboardCard";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -17,419 +18,417 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Slider } from "@/components/ui/slider";
-import { Progress } from "@/components/ui/progress";
-import {
-  AlertCircle,
-  CheckCircle2,
-  ArrowRight,
-  AlertTriangle,
-} from "lucide-react";
-import {
-  mockPatients,
-  mockModels,
-  mockSymptomInputs,
-  predictDisease
-} from "@/lib/mockData";
-import { SymptomInput, PredictionResult, Patient, ModelMetadata } from "@/lib/types";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { mockModels, mockPatients, mockSymptomInputs, predictDisease } from "@/lib/mockData";
+import { ModelMetadata, Patient, PredictionResult, SymptomInput } from "@/lib/types";
+import { ArrowLeft, Stethoscope, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const Diagnose = () => {
-  const [searchParams] = useSearchParams();
-  const [selectedPatientId, setSelectedPatientId] = useState<string>("");
-  const [selectedModelId, setSelectedModelId] = useState<string>("");
-  const [symptoms, setSymptoms] = useState<SymptomInput[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [results, setResults] = useState<PredictionResult[]>([]);
+  const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+  const patientIdParam = searchParams.get("patientId");
   
-  // Get initial values from URL params
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [selectedModel, setSelectedModel] = useState<ModelMetadata | null>(null);
+  const [symptomInputs, setSymptomInputs] = useState<SymptomInput[]>([]);
+  const [predictions, setPredictions] = useState<PredictionResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [diagnosisCompleted, setDiagnosisCompleted] = useState(false);
+
+  // Load patient data if patientId is provided in URL
   useEffect(() => {
-    const patientId = searchParams.get("patientId") || "";
-    const modelId = searchParams.get("model") || "";
-    
-    if (patientId) setSelectedPatientId(patientId);
-    if (modelId) {
-      setSelectedModelId(modelId);
-      const selectedModel = mockModels.find(m => m.id === modelId);
-      if (selectedModel) {
-        setSymptoms([...mockSymptomInputs[selectedModel.diseaseCategory]]);
+    if (patientIdParam) {
+      const patient = mockPatients.find(p => p.id === patientIdParam);
+      if (patient) {
+        setSelectedPatient(patient);
       }
     }
-  }, [searchParams]);
-  
-  // Update symptoms when model changes
+  }, [patientIdParam]);
+
+  // Update symptom inputs when model is selected
   useEffect(() => {
-    if (selectedModelId) {
-      const selectedModel = mockModels.find(m => m.id === selectedModelId);
-      if (selectedModel) {
-        setSymptoms([...mockSymptomInputs[selectedModel.diseaseCategory]]);
-        setResults([]);
+    if (selectedModel) {
+      const modelSymptoms = mockSymptomInputs[selectedModel.diseaseCategory];
+      if (modelSymptoms) {
+        setSymptomInputs([...modelSymptoms]);
       }
-    } else {
-      setSymptoms([]);
-      setResults([]);
     }
-  }, [selectedModelId]);
-  
-  const handleSymptomChange = (symptomId: string, value: number | boolean | string) => {
-    setSymptoms(prevSymptoms =>
-      prevSymptoms.map(symptom =>
-        symptom.id === symptomId ? { ...symptom, value } : symptom
+  }, [selectedModel]);
+
+  const handleModelChange = (modelId: string) => {
+    const model = mockModels.find(m => m.id === modelId);
+    if (model) {
+      setSelectedModel(model);
+      setPredictions([]);
+      setDiagnosisCompleted(false);
+    }
+  };
+
+  const handlePatientChange = (patientId: string) => {
+    const patient = mockPatients.find(p => p.id === patientId);
+    if (patient) {
+      setSelectedPatient(patient);
+    }
+  };
+
+  const handleSymptomChange = (id: string, value: number | boolean | string) => {
+    setSymptomInputs(
+      symptomInputs.map(input => 
+        input.id === id ? { ...input, value } : input
       )
     );
   };
-  
-  const handleRunPrediction = async () => {
-    if (!selectedModelId) {
+
+  const handleDiagnose = async () => {
+    if (!selectedModel || !selectedPatient) {
       toast({
-        title: "Model required",
-        description: "Please select a prediction model first",
+        title: "Error",
+        description: "Please select both a patient and a diagnostic model.",
         variant: "destructive",
       });
       return;
     }
-    
-    setIsLoading(true);
-    
+
+    setLoading(true);
     try {
-      const results = await predictDisease(selectedModelId, symptoms);
-      setResults(results);
+      const results = await predictDisease(selectedModel.id, symptomInputs);
+      setPredictions(results);
+      setDiagnosisCompleted(true);
+
       toast({
-        title: "Prediction complete",
-        description: "Disease prediction has been successfully generated",
+        title: "Diagnosis Complete",
+        description: `Generated predictions using ${selectedModel.name}`,
       });
     } catch (error) {
       toast({
-        title: "Prediction failed",
-        description: "There was an error generating predictions",
+        title: "Diagnosis Failed",
+        description: "There was an error running the diagnostic model.",
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
-  
-  const selectedPatient = selectedPatientId 
-    ? mockPatients.find(p => p.id === selectedPatientId) 
-    : null;
-    
-  const selectedModel = selectedModelId 
-    ? mockModels.find(m => m.id === selectedModelId) 
-    : null;
-    
-  const getSymptomsByCategory = (category: string) => {
-    return symptoms.filter(s => s.category === category);
+
+  const getRiskBadgeClass = (risk: 'low' | 'medium' | 'high') => {
+    switch (risk) {
+      case 'high':
+        return 'bg-red-100 text-red-700 border-red-200';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      case 'low':
+        return 'bg-green-100 text-green-700 border-green-200';
+      default:
+        return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
   };
 
-  // For the pie chart in results
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
-  
-  const pieChartData = results.map(result => ({
-    name: result.disease,
-    value: result.probability * 100
-  }));
-  
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">AI Disease Prediction</h1>
-        
-        <div className="grid gap-8 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Patient & Model Selection</CardTitle>
-                <CardDescription>
-                  Select a patient and prediction model to begin
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-6 md:grid-cols-2">
+        <Button variant="outline" onClick={() => navigate(-1)} className="mb-6">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
+
+        <h1 className="text-3xl font-bold mb-1">AI Diagnostic Assistant</h1>
+        <p className="text-muted-foreground mb-8">
+          Use machine learning models to predict possible diagnoses
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-1 space-y-6">
+            <DashboardCard 
+              title="Patient Selection" 
+              description="Select the patient for diagnosis" 
+              icon={<Stethoscope />}
+            >
+              <Select 
+                value={selectedPatient?.id || ""} 
+                onValueChange={handlePatientChange}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Patient" />
+                </SelectTrigger>
+                <SelectContent>
+                  {mockPatients.map((patient) => (
+                    <SelectItem key={patient.id} value={patient.id}>
+                      {patient.name} ({patient.age}, {patient.gender})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {selectedPatient && (
+                <div className="mt-4 p-3 bg-muted/50 rounded-lg text-sm space-y-2">
                   <div>
-                    <Label htmlFor="patient-select" className="mb-2 block">
-                      Select Patient
-                    </Label>
-                    <Select
-                      value={selectedPatientId}
-                      onValueChange={setSelectedPatientId}
-                    >
-                      <SelectTrigger id="patient-select">
-                        <SelectValue placeholder="Select a patient..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {mockPatients.map((patient: Patient) => (
-                          <SelectItem key={patient.id} value={patient.id}>
-                            {patient.name} ({patient.age}, {patient.gender})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <span className="font-medium">Age:</span> {selectedPatient.age}
                   </div>
-                  
                   <div>
-                    <Label htmlFor="model-select" className="mb-2 block">
-                      Prediction Model
-                    </Label>
-                    <Select
-                      value={selectedModelId}
-                      onValueChange={setSelectedModelId}
-                    >
-                      <SelectTrigger id="model-select">
-                        <SelectValue placeholder="Select a model..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {mockModels.map((model: ModelMetadata) => (
-                          <SelectItem key={model.id} value={model.id}>
-                            {model.name} (Accuracy: {(model.accuracy * 100).toFixed(1)}%)
-                          </SelectItem>
+                    <span className="font-medium">Gender:</span> {selectedPatient.gender}
+                  </div>
+                  <div>
+                    <span className="font-medium">Blood Type:</span> {selectedPatient.bloodType || 'Not recorded'}
+                  </div>
+                  <div>
+                    <span className="font-medium">Medical History:</span>
+                    {selectedPatient.medicalHistory && selectedPatient.medicalHistory.length > 0 ? (
+                      <ul className="list-disc list-inside mt-1 ml-2">
+                        {selectedPatient.medicalHistory.map((condition, index) => (
+                          <li key={index}>{condition}</li>
                         ))}
-                      </SelectContent>
-                    </Select>
+                      </ul>
+                    ) : (
+                      <span className="block mt-1 ml-2">No history recorded</span>
+                    )}
                   </div>
                 </div>
-                
-                {selectedModel && (
-                  <div className="mt-6">
-                    <Alert className="bg-primary/10 border-primary/20">
-                      <AlertCircle className="h-4 w-4 text-primary" />
-                      <AlertTitle>Model Information</AlertTitle>
-                      <AlertDescription>
-                        <p className="mb-1">{selectedModel.description}</p>
-                        <p className="text-sm">
-                          <span className="font-semibold">Version:</span> {selectedModel.version} | 
-                          <span className="font-semibold"> Category:</span> {selectedModel.diseaseCategory} |
-                          <span className="font-semibold"> Last Updated:</span> {selectedModel.lastUpdated}
-                        </p>
-                      </AlertDescription>
-                    </Alert>
+              )}
+            </DashboardCard>
+
+            <DashboardCard 
+              title="Model Selection" 
+              description="Choose a diagnostic model to use" 
+              icon={<CheckCircle2 />}
+            >
+              <Select 
+                value={selectedModel?.id || ""} 
+                onValueChange={handleModelChange}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Diagnostic Model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {mockModels.map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      {model.name} ({model.diseaseCategory})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {selectedModel && (
+                <div className="mt-4 p-3 bg-muted/50 rounded-lg text-sm space-y-2">
+                  <div>
+                    <span className="font-medium">Version:</span> {selectedModel.version}
+                  </div>
+                  <div>
+                    <span className="font-medium">Accuracy:</span> {selectedModel.accuracy * 100}%
+                  </div>
+                  <div>
+                    <span className="font-medium">Last Updated:</span> {selectedModel.lastUpdated}
+                  </div>
+                  <div>
+                    <span className="font-medium">Description:</span>
+                    <p className="mt-1 ml-2">{selectedModel.description}</p>
+                  </div>
+                </div>
+              )}
+
+              <Button
+                onClick={handleDiagnose}
+                disabled={!selectedPatient || !selectedModel || loading}
+                className="w-full mt-4"
+              >
+                {loading ? (
+                  <>
+                    <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></span>
+                    Processing...
+                  </>
+                ) : (
+                  'Generate Diagnosis'
+                )}
+              </Button>
+            </DashboardCard>
+          </div>
+
+          <div className="md:col-span-2">
+            <Card className="h-full">
+              <CardContent className="p-6">
+                {!selectedModel ? (
+                  <div className="flex flex-col items-center justify-center text-center h-full py-12">
+                    <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium mb-2">No Model Selected</h3>
+                    <p className="text-muted-foreground">
+                      Please select a diagnostic model to see relevant input fields
+                    </p>
+                  </div>
+                ) : diagnosisCompleted && predictions.length > 0 ? (
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-lg font-medium">Diagnostic Results</h3>
+                      <Button variant="outline" size="sm" onClick={() => setDiagnosisCompleted(false)}>
+                        Modify Inputs
+                      </Button>
+                    </div>
+                    
+                    <Separator />
+                    
+                    <div className="space-y-4">
+                      {predictions.map((prediction, index) => (
+                        <div key={index} className="border rounded-lg p-4">
+                          <div className="flex justify-between mb-2">
+                            <h4 className="font-semibold text-lg">{prediction.disease}</h4>
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getRiskBadgeClass(prediction.riskLevel)}`}>
+                              {prediction.riskLevel.toUpperCase()} RISK
+                            </span>
+                          </div>
+                          
+                          <div className="mb-3">
+                            <div className="text-sm text-muted-foreground mb-1">Probability</div>
+                            <div className="flex items-center">
+                              <div className="w-full bg-muted rounded-full h-2 mr-3">
+                                <div 
+                                  className="bg-primary h-2 rounded-full" 
+                                  style={{ width: `${Number(prediction.probability) * 100}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-sm font-medium">
+                                {typeof prediction.probability === 'number' 
+                                  ? (prediction.probability * 100).toFixed(1) 
+                                  : '0'}%
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div className="mb-4">
+                            <div className="text-sm text-muted-foreground mb-1">Model Confidence</div>
+                            <div className="flex items-center">
+                              <div className="w-full bg-muted rounded-full h-2 mr-3">
+                                <div 
+                                  className="bg-primary h-2 rounded-full" 
+                                  style={{ width: `${Number(prediction.confidence) * 100}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-sm font-medium">
+                                {typeof prediction.confidence === 'number' 
+                                  ? (prediction.confidence * 100).toFixed(1) 
+                                  : '0'}%
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {prediction.suggestedTests && prediction.suggestedTests.length > 0 && (
+                            <div>
+                              <h5 className="text-sm font-medium mb-2">Suggested Tests</h5>
+                              <ul className="text-sm list-disc list-inside">
+                                {prediction.suggestedTests.map((test, i) => (
+                                  <li key={i}>{test}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <Separator />
+                    
+                    <div className="flex justify-end">
+                      <Button variant="outline" className="mr-2">Save to Patient Records</Button>
+                      <Button>Print Results</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-medium">Enter Symptoms & Test Results</h3>
+                    <Separator />
+                    
+                    <ScrollArea className="h-[500px] pr-4">
+                      {symptomInputs.length === 0 ? (
+                        <div className="py-8 text-center text-muted-foreground">
+                          No input fields available for this model
+                        </div>
+                      ) : (
+                        <div className="space-y-6">
+                          {/* Group inputs by category */}
+                          {['symptom', 'vital', 'lab'].map((category) => {
+                            const categoryInputs = symptomInputs.filter(input => input.category === category);
+                            if (categoryInputs.length === 0) return null;
+                            
+                            return (
+                              <div key={category} className="space-y-4">
+                                <h4 className="font-medium capitalize">{category} Inputs</h4>
+                                
+                                {categoryInputs.map((input) => {
+                                  if (typeof input.value === 'boolean') {
+                                    // Boolean inputs (symptoms)
+                                    return (
+                                      <div key={input.id} className="flex items-center justify-between">
+                                        <Label htmlFor={input.id} className="flex-grow">{input.name}</Label>
+                                        <Switch
+                                          id={input.id}
+                                          checked={input.value}
+                                          onCheckedChange={(checked) => handleSymptomChange(input.id, checked)}
+                                        />
+                                      </div>
+                                    );
+                                  } else if (typeof input.value === 'number') {
+                                    // Numeric inputs (vitals, labs)
+                                    const min = 0;
+                                    const max = 300;
+                                    const step = 1;
+                                    
+                                    return (
+                                      <div key={input.id} className="space-y-2">
+                                        <div className="flex justify-between">
+                                          <Label htmlFor={input.id}>{input.name}</Label>
+                                          <span className="text-sm font-medium">{input.value}</span>
+                                        </div>
+                                        <Slider
+                                          id={input.id}
+                                          min={min}
+                                          max={max}
+                                          step={step}
+                                          value={[input.value as number]}
+                                          onValueChange={([value]) => handleSymptomChange(input.id, value)}
+                                        />
+                                      </div>
+                                    );
+                                  } else if (typeof input.value === 'string') {
+                                    // Categorical inputs
+                                    return (
+                                      <div key={input.id} className="space-y-2">
+                                        <Label htmlFor={input.id}>{input.name}</Label>
+                                        <RadioGroup
+                                          id={input.id}
+                                          value={input.value}
+                                          onValueChange={(value) => handleSymptomChange(input.id, value)}
+                                          className="flex flex-col space-y-1"
+                                        >
+                                          <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="normal" id={`${input.id}-normal`} />
+                                            <Label htmlFor={`${input.id}-normal`}>Normal</Label>
+                                          </div>
+                                          <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="moderate" id={`${input.id}-moderate`} />
+                                            <Label htmlFor={`${input.id}-moderate`}>Moderate</Label>
+                                          </div>
+                                          <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="severe" id={`${input.id}-severe`} />
+                                            <Label htmlFor={`${input.id}-severe`}>Severe</Label>
+                                          </div>
+                                        </RadioGroup>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })}
+                                
+                                {category !== 'lab' && <Separator />}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </ScrollArea>
                   </div>
                 )}
               </CardContent>
             </Card>
-            
-            {selectedModelId && (
-              <Card className="mt-8">
-                <CardHeader>
-                  <CardTitle>Clinical Data Input</CardTitle>
-                  <CardDescription>
-                    Enter symptoms and clinical data for diagnosis prediction
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Tabs defaultValue="symptoms">
-                    <TabsList className="grid grid-cols-3">
-                      <TabsTrigger value="symptoms">Symptoms</TabsTrigger>
-                      <TabsTrigger value="vitals">Vital Signs</TabsTrigger>
-                      <TabsTrigger value="labs">Lab Results</TabsTrigger>
-                    </TabsList>
-                    
-                    <TabsContent value="symptoms" className="space-y-4 mt-4">
-                      {getSymptomsByCategory("symptom").map((symptom) => (
-                        <div key={symptom.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`symptom-${symptom.id}`}
-                            checked={symptom.value as boolean}
-                            onCheckedChange={(checked) => handleSymptomChange(symptom.id, checked)}
-                          />
-                          <Label htmlFor={`symptom-${symptom.id}`}>{symptom.name}</Label>
-                        </div>
-                      ))}
-                    </TabsContent>
-                    
-                    <TabsContent value="vitals" className="space-y-6 mt-4">
-                      {getSymptomsByCategory("vital").map((vital) => (
-                        <div key={vital.id} className="space-y-2">
-                          <div className="flex justify-between">
-                            <Label htmlFor={`vital-${vital.id}`}>{vital.name}</Label>
-                            <span className="text-sm font-medium">
-                              {vital.value}
-                            </span>
-                          </div>
-                          <Slider
-                            id={`vital-${vital.id}`}
-                            min={0}
-                            max={vital.name.includes("BP") ? 200 : vital.name.includes("Heart Rate") ? 180 : 120}
-                            step={1}
-                            value={[Number(vital.value)]}
-                            onValueChange={(value) => handleSymptomChange(vital.id, value[0])}
-                          />
-                        </div>
-                      ))}
-                    </TabsContent>
-                    
-                    <TabsContent value="labs" className="space-y-6 mt-4">
-                      {getSymptomsByCategory("lab").map((lab) => (
-                        <div key={lab.id} className="space-y-2">
-                          <Label htmlFor={`lab-${lab.id}`}>{lab.name}</Label>
-                          <Input
-                            id={`lab-${lab.id}`}
-                            type="number"
-                            value={lab.value.toString()}
-                            onChange={(e) => handleSymptomChange(lab.id, parseFloat(e.target.value) || 0)}
-                            step={0.1}
-                          />
-                        </div>
-                      ))}
-                    </TabsContent>
-                  </Tabs>
-                  
-                  <div className="mt-8 flex justify-end">
-                    <Button onClick={handleRunPrediction} disabled={isLoading}>
-                      {isLoading ? (
-                        <>
-                          <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-b-transparent"></span>
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          Generate Prediction
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-          
-          <div>
-            {selectedPatient && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Patient Summary</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="font-semibold text-lg">{selectedPatient.name}</p>
-                      <p className="text-muted-foreground">
-                        {selectedPatient.age} years, {selectedPatient.gender}
-                      </p>
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">Blood Type</p>
-                      <p>{selectedPatient.bloodType || "Not recorded"}</p>
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">Medical History</p>
-                      {selectedPatient.medicalHistory && selectedPatient.medicalHistory.length > 0 ? (
-                        <ul className="list-disc list-inside">
-                          {selectedPatient.medicalHistory.map((condition, i) => (
-                            <li key={i} className="text-sm">{condition}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No medical history recorded</p>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-            
-            {results.length > 0 && (
-              <Card className="mt-8">
-                <CardHeader>
-                  <CardTitle>Prediction Results</CardTitle>
-                  <CardDescription>
-                    AI-generated diagnosis predictions
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-8">
-                  <div className="h-[200px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={pieChartData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={40}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                        >
-                          {pieChartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(value) => `${value.toFixed(1)}%`} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    {results.map((result, index) => (
-                      <div key={index} className="border rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-semibold">{result.disease}</h4>
-                          <div className={`px-2 py-1 rounded text-xs ${
-                            result.riskLevel === 'high'
-                              ? 'bg-destructive/10 text-destructive'
-                              : result.riskLevel === 'medium'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-green-100 text-green-800'
-                          }`}>
-                            {result.riskLevel.toUpperCase()} RISK
-                          </div>
-                        </div>
-                        
-                        <div className="mb-2">
-                          <div className="flex justify-between mb-1 text-sm">
-                            <span>Probability</span>
-                            <span>{(result.probability * 100).toFixed(1)}%</span>
-                          </div>
-                          <Progress value={result.probability * 100} className="h-2" />
-                        </div>
-                        
-                        <div className="mb-2">
-                          <div className="flex justify-between mb-1 text-sm">
-                            <span>Confidence</span>
-                            <span>{(result.confidence * 100).toFixed(1)}%</span>
-                          </div>
-                          <Progress value={result.confidence * 100} className="h-2" />
-                        </div>
-                        
-                        {result.suggestedTests && result.suggestedTests.length > 0 && (
-                          <div className="mt-3">
-                            <p className="text-sm font-medium mb-1">Suggested Tests</p>
-                            <ul className="text-sm space-y-1">
-                              {result.suggestedTests.map((test, idx) => (
-                                <li key={idx} className="flex items-center">
-                                  <CheckCircle2 className="h-3 w-3 mr-2 text-primary" />
-                                  {test}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <Alert variant="default" className="bg-accent/20 border-accent/30">
-                    <AlertTriangle className="h-4 w-4 text-accent-foreground" />
-                    <AlertTitle>Clinical Decision Support</AlertTitle>
-                    <AlertDescription className="text-sm">
-                      These predictions are intended to assist clinical decision-making and 
-                      should not replace professional medical judgment.
-                    </AlertDescription>
-                  </Alert>
-                </CardContent>
-              </Card>
-            )}
           </div>
         </div>
       </div>

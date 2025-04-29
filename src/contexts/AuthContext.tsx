@@ -2,19 +2,13 @@
 import { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from "@/components/ui/use-toast";
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: 'doctor' | 'admin' | 'researcher';
-}
+import { User } from '@/lib/types';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (name: string, email: string, password: string, role: 'doctor' | 'admin' | 'researcher') => Promise<void>;
+  signup: (name: string, email: string, password: string, role: 'doctor' | 'admin' | 'researcher' | 'patient') => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -36,6 +30,21 @@ const MOCK_USERS = [
     email: 'admin@example.com',
     password: 'password123',
     role: 'admin' as const
+  },
+  {
+    id: '3',
+    name: 'Research Team',
+    email: 'researcher@example.com',
+    password: 'password123',
+    role: 'researcher' as const
+  },
+  {
+    id: '4',
+    name: 'John Doe',
+    email: 'patient@example.com',
+    password: 'password123',
+    role: 'patient' as const,
+    patientId: '1' // Linked to the patient record with ID 1
   }
 ];
 
@@ -65,13 +74,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (foundUser) {
         const { password, ...userWithoutPassword } = foundUser;
-        setUser(userWithoutPassword);
+        setUser(userWithoutPassword as User);
         localStorage.setItem('clinicalUser', JSON.stringify(userWithoutPassword));
         toast({
           title: "Login successful",
           description: `Welcome, ${foundUser.name}!`,
         });
-        navigate('/dashboard');
+        
+        // Redirect based on role
+        if (foundUser.role === 'patient') {
+          navigate('/patient-portal');
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         throw new Error('Invalid email or password');
       }
@@ -87,7 +102,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Signup function
-  const signup = async (name: string, email: string, password: string, role: 'doctor' | 'admin' | 'researcher') => {
+  const signup = async (name: string, email: string, password: string, role: 'doctor' | 'admin' | 'researcher' | 'patient') => {
     setLoading(true);
     try {
       // Mock API call - in real app would call actual registration API
@@ -102,7 +117,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         id: (MOCK_USERS.length + 1).toString(),
         name,
         email,
-        role
+        role,
+        patientId: role === 'patient' ? (MOCK_USERS.length + 1).toString() : undefined
       };
       
       setUser(newUser);
@@ -112,7 +128,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         title: "Registration successful",
         description: "Your account has been created",
       });
-      navigate('/dashboard');
+      
+      // Redirect based on role
+      if (role === 'patient') {
+        navigate('/patient-portal');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error) {
       toast({
         variant: "destructive",
