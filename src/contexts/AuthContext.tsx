@@ -115,20 +115,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       // Create new user with a patientId if role is patient
       const newUserId = (MOCK_USERS.length + 1).toString();
-      const newUser = {
-        id: newUserId,
-        name,
-        email,
-        role,
-        patientId: role === 'patient' ? newUserId : undefined
-      };
+      
+      // Create the new user with appropriate properties based on role
+      let newUser;
+      if (role === 'patient') {
+        const newPatientId = newUserId; // In a real app, you might have a separate patients table
+        newUser = {
+          id: newUserId,
+          name,
+          email,
+          password,
+          role: role as const,
+          patientId: newPatientId
+        };
+      } else {
+        // For non-patient roles, no patientId is needed
+        newUser = {
+          id: newUserId,
+          name,
+          email,
+          password,
+          role: role as const
+        };
+      }
       
       // In a real app, we would save this user to the database
-      // For demo, we just add to our mock users (in memory only)
-      MOCK_USERS.push({...newUser, password});
+      // For demo, we just add to our mock users
+      MOCK_USERS.push(newUser);
       
-      setUser(newUser);
-      localStorage.setItem('clinicalUser', JSON.stringify(newUser));
+      // Create a version of user without the password for state and localStorage
+      const { password: _, ...userWithoutPassword } = newUser;
+      
+      setUser(userWithoutPassword as User);
+      localStorage.setItem('clinicalUser', JSON.stringify(userWithoutPassword));
       
       toast({
         title: "Registration successful",
