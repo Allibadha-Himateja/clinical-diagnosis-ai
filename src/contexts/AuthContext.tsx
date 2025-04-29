@@ -1,4 +1,3 @@
-
 import { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from "@/components/ui/use-toast";
@@ -125,7 +124,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           name,
           email,
           password,
-          role: role as const,
+          role: role,
           patientId: newPatientId
         };
       } else {
@@ -135,7 +134,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           name,
           email,
           password,
-          role: role as const
+          role: role
         };
       }
       
